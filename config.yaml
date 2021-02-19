@@ -1,0 +1,10 @@
+connection:
+  host: YOUR.HOST.IP.HERE
+  port: 9200
+performance:
+  workers: 10
+elastic:
+  scroll: 5m
+  size: 1000
+output:
+  directory: results
