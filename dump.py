@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from json import dump
 from pathlib import Path
 from time import time
@@ -15,29 +15,34 @@ class Defaults:
     QUERY = {"query": {"match_all": {}}}
 
 
+def load_config(config_file: str = "config.yaml") -> dict:
+    """
+    Load the configuration
+    :param config_file: configuration YAML file
+    :return: dictionary with config
+    """
+    with open(file=config_file, mode="r") as config_file:
+        config_yaml = safe_load(config_file)
+    flat_config = {}
+    for options in config_yaml.values():
+        flat_config.update(**options)
+    return flat_config
+
+
 class ElasticDump:
-    def __init__(self):
+    def __init__(self, config: dict):
         """
-        Init elastic dumper
+        Init dumper
+        :param config: config
         """
-        self.__config = self.load_config()
-        p_config = {}
-        for options in self.__config.values():
-            p_config.update(**options)
-        self.__config = p_config
-        self.__client = Elasticsearch(hosts=[f"{self.__config.get('host')}:{self.__config.get('port')}"])
+        self.__host = config.get("host")
+        self.__port = config.get("port")
+        self.__config = config
 
-        Path(self.__config.get('directory')).mkdir(parents=True, exist_ok=True)
+        self.__path = Path(self.__config.get("directory")).joinpath(self.__host.replace(".", "_"))
+        self.__path.mkdir(parents=True, exist_ok=True)
 
-    @staticmethod
-    def load_config(config_file: str = "config.yaml") -> dict:
-        """
-        Load the configuration
-        :param config_file: configuration YAML file
-        :return: dictionary with config
-        """
-        with open(file=config_file, mode="r") as config:
-            return safe_load(config)
+        self.__client = Elasticsearch(hosts=[f"{self.__host}:{self.__port}"])
 
     def get_indices(self, index: str = "*") -> list:
         """
@@ -55,8 +60,8 @@ class ElasticDump:
         :param filename: filename
         :return: None
         """
-        with open(file=Path(self.__config.get('directory')).joinpath(filename), mode="w") as output_file:
-            dump(results, output_file)
+        with open(file=self.__path.joinpath(filename), mode="w") as output_file:
+            dump(results, output_file, indent=2)
 
     def process_index(self, index_name: str) -> None:
         """
@@ -89,5 +94,6 @@ class ElasticDump:
 
 
 if __name__ == "__main__":
-    dumper = ElasticDump()
+    config = load_config()
+    dumper = ElasticDump(config)
     dumper.run()
